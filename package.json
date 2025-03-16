@@ -19,7 +19,24 @@
       "mode": "view"
     }
   ],
+  "preferences": [
+    {
+      "name": "notionApiKey",
+      "title": "Notion API Key",
+      "description": "Your Notion integration API key",
+      "type": "password",
+      "required": true
+    },
+    {
+      "name": "notionDatabaseId",
+      "title": "Notion Database ID",
+      "description": "The ID of your Notion database (e.g. 1b8ca847-220d-80d8-83ac-ce80437d1bf4)",
+      "type": "textfield",
+      "required": true
+    }
+  ],
   "dependencies": {
+    "@notionhq/client": "^2.3.0",
     "@raycast/api": "^1.93.2",
     "@raycast/utils": "^1.17.0"
   },
