@@ -7,7 +7,7 @@ interface Preferences {
 
 export const getConfig = (): Preferences => {
   const preferences = getPreferenceValues<Preferences>();
-  
+
   // Validate required preferences
   if (!preferences.notionApiKey) {
     throw new Error("Notion API Key is required in preferences");

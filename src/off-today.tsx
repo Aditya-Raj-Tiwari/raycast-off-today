@@ -1,8 +1,11 @@
 import { useState, useEffect } from "react";
 import { ActionPanel, Detail, List, Action, Icon, Color } from "@raycast/api";
 import { Client } from "@notionhq/client";
-import { formatDate, isDateInRange } from "./utils";
+import { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
+import { formatDate, isDateInRange, groupByDate } from "./utils";
 import { getConfig } from "./config";
+
+// Using types directly from @notionhq/client package
 
 // Get configuration from Raycast preferences
 const { notionApiKey, notionDatabaseId } = getConfig();
@@ -12,13 +15,14 @@ const notion = new Client({
   auth: notionApiKey,
 });
 
-interface Employee {
+export interface Employee {
   id: string;
   name: string;
   startDate: string;
   endDate: string;
   status: string;
   reason: string;
+  notionUrl: string;
 }
 
 export default function Command() {
@@ -42,20 +46,30 @@ export default function Command() {
           },
         });
 
-        const employeeData = response.results.map((page: any) => {
-          const properties = page.properties;
+        const employeeData = response.results
+          .filter((page): page is PageObjectResponse => "properties" in page)
+          .map((page) => {
+            const properties = page.properties;
 
-          return {
-            id: page.id,
-            name: properties["Employee Name"]?.title[0]?.plain_text || "Unnamed",
-            startDate: properties["Start Date"]?.date?.start || "",
-            endDate: properties["End Date"]?.date?.start || "",
-            status: properties["Status"]?.status?.name || "Unknown",
-            reason: properties["Reason"]?.rich_text[0]?.plain_text || "",
-          };
-        });
+            return {
+              id: page.id,
+              name:
+                properties["Employee Name"]?.type === "title"
+                  ? properties["Employee Name"].title[0]?.plain_text || "Unnamed"
+                  : "Unnamed",
+              startDate: properties["Start Date"]?.type === "date" ? properties["Start Date"].date?.start || "" : "",
+              endDate: properties["End Date"]?.type === "date" ? properties["End Date"].date?.start || "" : "",
+              status:
+                properties["Status"]?.type === "status" ? properties["Status"].status?.name || "Unknown" : "Unknown",
+              reason:
+                properties["Reason"]?.type === "rich_text" ? properties["Reason"].rich_text[0]?.plain_text || "" : "",
+              notionUrl: page.url || "",
+            };
+          });
 
-        setEmployees(employeeData);
+        // Extra filter to ensure no rejected entries
+        const filteredData = employeeData.filter((employee) => employee.status !== "Rejected");
+        setEmployees(filteredData);
       } catch (error) {
         console.error("Error fetching data:", error);
       } finally {
@@ -74,7 +88,7 @@ export default function Command() {
 
   // Handle when no data or loading state
   if (isLoading) {
-    return <List isLoading={true} />;
+    return <List isLoading={true} searchBarPlaceholder="Search employees on leave..." />;
   }
 
   // If no records in upcoming leaves and no one on leave today
@@ -95,14 +109,17 @@ export default function Command() {
     );
   }
 
+  // Group upcoming leaves by start date
   const upcomingLeaves = employees
     .filter((employee) => new Date(employee.startDate) > today)
     .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
 
+  const groupedUpcomingLeaves = groupByDate(upcomingLeaves);
+
   return (
-    <List>
+    <List searchBarPlaceholder="Search employees on leave...">
       {employeesOnLeaveToday.length > 0 ? (
-        <List.Section title="Employees On Leave Today">
+        <List.Section title="📅 Employees On Leave Today">
           {employeesOnLeaveToday.map((employee) => (
             <List.Item
               key={employee.id}
@@ -121,9 +138,15 @@ export default function Command() {
 **Status:** ${employee.status}
 **Leave Period:** ${formatDate(employee.startDate)} - ${formatDate(employee.endDate)}
 **Reason:** ${employee.reason}`}
+                        actions={
+                          <ActionPanel>
+                            <Action.OpenInBrowser title="Open in Notion" url={employee.notionUrl} />
+                          </ActionPanel>
+                        }
                       />
                     }
                   />
+                  <Action.OpenInBrowser title="Open in Notion" url={employee.notionUrl} />
                 </ActionPanel>
               }
             />
@@ -137,9 +160,9 @@ export default function Command() {
         />
       )}
 
-      {upcomingLeaves.length > 0 && (
-        <List.Section title="Upcoming Leaves">
-          {upcomingLeaves.map((employee) => (
+      {Object.entries(groupedUpcomingLeaves).map(([date, employees]) => (
+        <List.Section key={date} title={`📆 Upcoming: ${date}`}>
+          {employees.map((employee) => (
             <List.Item
               key={employee.id}
               icon={getStatusIcon(employee.status)}
@@ -157,15 +180,21 @@ export default function Command() {
 **Status:** ${employee.status}
 **Leave Period:** ${formatDate(employee.startDate)} - ${formatDate(employee.endDate)}
 **Reason:** ${employee.reason}`}
+                        actions={
+                          <ActionPanel>
+                            <Action.OpenInBrowser title="Open in Notion" url={employee.notionUrl} />
+                          </ActionPanel>
+                        }
                       />
                     }
                   />
+                  <Action.OpenInBrowser title="Open in Notion" url={employee.notionUrl} />
                 </ActionPanel>
               }
             />
           ))}
         </List.Section>
-      )}
+      ))}
     </List>
   );
 }
