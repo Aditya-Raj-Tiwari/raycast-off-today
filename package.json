@@ -3,7 +3,7 @@
   "name": "staff-on-leave",
   "title": "Staff on Leave",
   "description": "See the calander view of employees who are off work today",
-  "icon": "extension-icon.png",
+  "icon": "./holiday-icon.png",
   "author": "Aditya-Raj-Tiwari",
   "owner": "evolvet",
   "categories": [

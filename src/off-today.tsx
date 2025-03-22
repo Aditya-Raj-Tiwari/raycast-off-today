@@ -123,30 +123,33 @@ export default function Command() {
           {employeesOnLeaveToday.map((employee) => (
             <List.Item
               key={employee.id}
-              icon={getStatusIcon(employee.status)}
-              title={employee.name}
-              subtitle={`${formatDate(employee.startDate)} - ${formatDate(employee.endDate)}`}
-              accessories={[{ text: employee.status }, { text: employee.reason }]}
+              icon={{ source: Icon.Person }}
+              title={employee.name || "Unnamed"}
+              subtitle={`${formatDate(employee.startDate || new Date())} - ${formatDate(employee.endDate || new Date())}`}
+              accessories={[
+                getStatusAccessory(employee.status),
+                ...(employee.reason ? [{ text: employee.reason }] : []),
+              ]}
               actions={
                 <ActionPanel>
                   <Action.Push
                     title="Show Details"
                     target={
                       <Detail
-                        markdown={`# ${employee.name}
+                        markdown={`# ${employee.name || "Unnamed"}
                         
-**Status:** ${employee.status}
-**Leave Period:** ${formatDate(employee.startDate)} - ${formatDate(employee.endDate)}
-**Reason:** ${employee.reason}`}
+**Status:** ${employee.status || "Unknown"}
+**Leave Period:** ${formatDate(employee.startDate || new Date())} - ${formatDate(employee.endDate || new Date())}
+${employee.reason ? `**Reason:** ${employee.reason}` : ""}`}
                         actions={
                           <ActionPanel>
-                            <Action.OpenInBrowser title="Open in Notion" url={employee.notionUrl} />
+                            <Action.OpenInBrowser title="Open in Notion" url={employee.notionUrl || "#"} />
                           </ActionPanel>
                         }
                       />
                     }
                   />
-                  <Action.OpenInBrowser title="Open in Notion" url={employee.notionUrl} />
+                  <Action.OpenInBrowser title="Open in Notion" url={employee.notionUrl || "#"} />
                 </ActionPanel>
               }
             />
@@ -165,30 +168,33 @@ export default function Command() {
           {employees.map((employee) => (
             <List.Item
               key={employee.id}
-              icon={getStatusIcon(employee.status)}
-              title={employee.name}
-              subtitle={`${formatDate(employee.startDate)} - ${formatDate(employee.endDate)}`}
-              accessories={[{ text: employee.status }, { text: employee.reason }]}
+              icon={{ source: Icon.Person }}
+              title={employee.name || "Unnamed"}
+              subtitle={`${formatDate(employee.startDate || new Date())} - ${formatDate(employee.endDate || new Date())}`}
+              accessories={[
+                getStatusAccessory(employee.status),
+                ...(employee.reason ? [{ text: employee.reason }] : []),
+              ]}
               actions={
                 <ActionPanel>
                   <Action.Push
                     title="Show Details"
                     target={
                       <Detail
-                        markdown={`# ${employee.name}
+                        markdown={`# ${employee.name || "Unnamed"}
                         
-**Status:** ${employee.status}
-**Leave Period:** ${formatDate(employee.startDate)} - ${formatDate(employee.endDate)}
-**Reason:** ${employee.reason}`}
+**Status:** ${employee.status || "Unknown"}
+**Leave Period:** ${formatDate(employee.startDate || new Date())} - ${formatDate(employee.endDate || new Date())}
+${employee.reason ? `**Reason:** ${employee.reason}` : ""}`}
                         actions={
                           <ActionPanel>
-                            <Action.OpenInBrowser title="Open in Notion" url={employee.notionUrl} />
+                            <Action.OpenInBrowser title="Open in Notion" url={employee.notionUrl || "#"} />
                           </ActionPanel>
                         }
                       />
                     }
                   />
-                  <Action.OpenInBrowser title="Open in Notion" url={employee.notionUrl} />
+                  <Action.OpenInBrowser title="Open in Notion" url={employee.notionUrl || "#"} />
                 </ActionPanel>
               }
             />
@@ -199,15 +205,27 @@ export default function Command() {
   );
 }
 
-function getStatusIcon(status: string) {
+function getStatusAccessory(status: string): List.Item.Accessory {
   switch (status) {
     case "Approved":
-      return { source: Icon.CheckCircle, tintColor: Color.Green };
+      return {
+        text: status,
+        icon: { source: Icon.CheckCircle, tintColor: Color.Green },
+        tooltip: "Approved",
+      };
     case "Pending":
-      return { source: Icon.Clock, tintColor: Color.Orange };
+      return {
+        text: status,
+        icon: { source: Icon.Clock, tintColor: Color.Orange },
+        tooltip: "Pending",
+      };
     case "Rejected":
-      return { source: Icon.XmarkCircle, tintColor: Color.Red };
+      return {
+        text: status,
+        icon: { source: Icon.XmarkCircle, tintColor: Color.Red },
+        tooltip: "Rejected",
+      };
     default:
-      return { source: Icon.Person };
+      return { text: status };
   }
 }
