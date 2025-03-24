@@ -5,6 +5,7 @@
   "description": "View employees who are currently on leave and upcoming leaves",
   "icon": "./holiday-icon.png",
   "author": "Aditya-Raj-Tiwari",
+  "owner": "Evolvet",
   "categories": [
     "Productivity"
   ],
