@@ -43,6 +43,23 @@ Your Notion database should have the following properties:
 - "End Date" (Date type)
 - "Status" (Status type with options: Pending, Approved, Rejected)
 - "Reason" (Text type)
+- "Work Tag" (Select type) - For department/team information
+
+## Features
+
+- **Off Today View**: Displays employees who are currently on leave.
+- **Upcoming Leaves**: Shows upcoming leaves organized by date.
+- **Detail View**: Click on an employee to see detailed information.
+- **Work Tags**: Filter and organize employees by department/team.
+- **Automatic Refresh**: Data refreshes periodically to stay up-to-date.
+- **Favorites Support**: Add to Raycast favorites for quick access to today's absences.
+
+## Customizing the Extension
+
+You can customize the extension behavior through Raycast preferences:
+- Set a custom refresh interval
+- Choose whether to show details by default
+- Configure Notion API connection details
 
 ## Sharing the Extension
 
@@ -88,5 +105,6 @@ To share with your team without publishing to the store:
 - If data isn't displaying correctly, verify:
   - The database structure matches the expected property names and types
   - There are current or upcoming leave records in the database
+  - The Work Tag field is set up as a Select type in your Notion database
 
 For more help, visit [Raycast Developer Documentation](https://developers.raycast.com/).

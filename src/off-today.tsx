@@ -1,11 +1,9 @@
 import { useState, useEffect } from "react";
-import { ActionPanel, Detail, List, Action, Icon, Color } from "@raycast/api";
+import { ActionPanel, List, Action, Icon, Color } from "@raycast/api";
 import { Client } from "@notionhq/client";
 import { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
 import { formatDate, isDateInRange, groupByDate } from "./utils";
 import { getConfig } from "./config";
-
-// Using types directly from @notionhq/client package
 
 // Get configuration from Raycast preferences
 const { notionApiKey, notionDatabaseId } = getConfig();
@@ -22,12 +20,14 @@ export interface Employee {
   endDate: string;
   status: string;
   reason: string;
+  workTag: string;
   notionUrl: string;
 }
 
 export default function Command() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
 
   useEffect(() => {
     async function fetchEmployees() {
@@ -63,6 +63,7 @@ export default function Command() {
                 properties["Status"]?.type === "status" ? properties["Status"].status?.name || "Unknown" : "Unknown",
               reason:
                 properties["Reason"]?.type === "rich_text" ? properties["Reason"].rich_text[0]?.plain_text || "" : "",
+              workTag: properties["Work Tag"]?.type === "select" ? properties["Work Tag"].select?.name || "" : "",
               notionUrl: page.url || "",
             };
           });
@@ -79,6 +80,32 @@ export default function Command() {
 
     fetchEmployees();
   }, []);
+
+  // Calculate work days (excluding weekends)
+  function getWorkDays(startDateStr: string, endDateStr: string): number {
+    const startDate = new Date(startDateStr);
+    const endDate = new Date(endDateStr);
+
+    // Set time to beginning of day for accurate calculation
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(0, 0, 0, 0);
+
+    let workDays = 0;
+    const currentDate = new Date(startDate);
+
+    while (currentDate <= endDate) {
+      // 0 = Sunday, 6 = Saturday
+      const dayOfWeek = currentDate.getDay();
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        workDays++;
+      }
+
+      // Move to next day
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    return workDays;
+  }
 
   const today = new Date();
   const todayStr = formatDate(today);
@@ -116,40 +143,115 @@ export default function Command() {
 
   const groupedUpcomingLeaves = groupByDate(upcomingLeaves);
 
+  // Filter employees based on status if needed
+  const filteredEmployees =
+    statusFilter !== "all" ? employeesOnLeaveToday.filter((emp) => emp.status === statusFilter) : employeesOnLeaveToday;
+
   return (
-    <List searchBarPlaceholder="Search employees on leave...">
-      {employeesOnLeaveToday.length > 0 ? (
+    <List
+      searchBarPlaceholder="Search employees on leave..."
+      searchBarAccessory={
+        <List.Dropdown tooltip="Filter by Status" value={statusFilter} onChange={setStatusFilter}>
+          <List.Dropdown.Item title="All Statuses" value="all" />
+          <List.Dropdown.Item title="Approved" value="Approved" />
+          <List.Dropdown.Item title="Pending" value="Pending" />
+        </List.Dropdown>
+      }
+    >
+      {filteredEmployees.length > 0 ? (
         <List.Section title="📅 Employees On Leave Today">
-          {employeesOnLeaveToday.map((employee) => (
+          {filteredEmployees.map((employee) => (
             <List.Item
               key={employee.id}
               icon={{ source: Icon.Person }}
               title={employee.name || "Unnamed"}
-              subtitle={`${formatDate(employee.startDate || new Date())} - ${formatDate(employee.endDate || new Date())}`}
+              subtitle={`📅 ${formatDate(employee.startDate)} - ${formatDate(employee.endDate)}`}
               accessories={[
+                {
+                  tag: {
+                    value: `${getWorkDays(employee.startDate, employee.endDate)} Werktage`,
+                    color: Color.Black,
+                  },
+                },
+                {
+                  text: employee.reason || "",
+                  icon: employee.reason.toLowerCase() === "urlaub" ? { source: "😎" } : undefined,
+                },
                 getStatusAccessory(employee.status),
-                ...(employee.reason ? [{ text: employee.reason }] : []),
               ]}
               actions={
                 <ActionPanel>
                   <Action.Push
                     title="Show Details"
                     target={
-                      <Detail
-                        markdown={`# ${employee.name || "Unnamed"}
-                        
-**Status:** ${employee.status || "Unknown"}
-**Leave Period:** ${formatDate(employee.startDate || new Date())} - ${formatDate(employee.endDate || new Date())}
-${employee.reason ? `**Reason:** ${employee.reason}` : ""}`}
-                        actions={
-                          <ActionPanel>
-                            <Action.OpenInBrowser title="Open in Notion" url={employee.notionUrl || "#"} />
-                          </ActionPanel>
-                        }
-                      />
+                      <List>
+                        <List.Section title={`Leave Details for ${employee.name}`}>
+                          <List.Item
+                            icon={{ source: Icon.Calendar, tintColor: Color.Blue }}
+                            title="Leave Period"
+                            subtitle={`${formatDate(employee.startDate)} - ${formatDate(employee.endDate)}`}
+                          />
+                          <List.Item
+                            icon={{ source: Icon.Clock, tintColor: Color.Purple }}
+                            title="Work Days"
+                            subtitle={`${getWorkDays(employee.startDate, employee.endDate)} Werktage`}
+                          />
+                          <List.Item
+                            icon={
+                              employee.reason.toLowerCase() === "urlaub"
+                                ? { source: "😎" }
+                                : { source: Icon.Message, tintColor: Color.Green }
+                            }
+                            title="Reason"
+                            subtitle={employee.reason}
+                          />
+                          <List.Item
+                            icon={{
+                              source: employee.status === "Approved" ? Icon.CheckCircle : Icon.Clock,
+                              tintColor: employee.status === "Approved" ? Color.Green : Color.Orange,
+                            }}
+                            title="Status"
+                            subtitle={employee.status}
+                          />
+                          {employee.workTag && (
+                            <List.Item
+                              icon={{ source: Icon.Building, tintColor: Color.Brown }}
+                              title="Department"
+                              subtitle={employee.workTag}
+                            />
+                          )}
+                        </List.Section>
+                        <List.Section title="Actions">
+                          <List.Item
+                            icon={{ source: Icon.Link, tintColor: Color.Blue }}
+                            title="Open in Notion"
+                            actions={
+                              <ActionPanel>
+                                <Action.OpenInBrowser url={employee.notionUrl || "#"} />
+                              </ActionPanel>
+                            }
+                          />
+                          <List.Item
+                            icon={{ source: Icon.CopyClipboard, tintColor: Color.Blue }}
+                            title="Copy Leave Details"
+                            actions={
+                              <ActionPanel>
+                                <Action.CopyToClipboard
+                                  content={`${employee.name}: ${formatDate(employee.startDate)} - ${formatDate(employee.endDate)} (${getWorkDays(employee.startDate, employee.endDate)} Werktage) - ${employee.reason}`}
+                                />
+                              </ActionPanel>
+                            }
+                          />
+                        </List.Section>
+                      </List>
                     }
                   />
                   <Action.OpenInBrowser title="Open in Notion" url={employee.notionUrl || "#"} />
+                  <Action.CopyToClipboard
+                    title="Copy Leave Details"
+                    content={`${employee.name}: ${formatDate(employee.startDate)} - ${formatDate(employee.endDate)} (${getWorkDays(employee.startDate, employee.endDate)} Werktage) - ${employee.reason}`}
+                    shortcut={{ modifiers: ["cmd"], key: "c" }}
+                  />
                 </ActionPanel>
               }
             />
@@ -163,44 +265,114 @@ ${employee.reason ? `**Reason:** ${employee.reason}` : ""}`}
         />
       )}
 
-      {Object.entries(groupedUpcomingLeaves).map(([date, employees]) => (
-        <List.Section key={date} title={`📆 Upcoming: ${date}`}>
-          {employees.map((employee) => (
-            <List.Item
-              key={employee.id}
-              icon={{ source: Icon.Person }}
-              title={employee.name || "Unnamed"}
-              subtitle={`${formatDate(employee.startDate || new Date())} - ${formatDate(employee.endDate || new Date())}`}
-              accessories={[
-                getStatusAccessory(employee.status),
-                ...(employee.reason ? [{ text: employee.reason }] : []),
-              ]}
-              actions={
-                <ActionPanel>
-                  <Action.Push
-                    title="Show Details"
-                    target={
-                      <Detail
-                        markdown={`# ${employee.name || "Unnamed"}
-                        
-**Status:** ${employee.status || "Unknown"}
-**Leave Period:** ${formatDate(employee.startDate || new Date())} - ${formatDate(employee.endDate || new Date())}
-${employee.reason ? `**Reason:** ${employee.reason}` : ""}`}
-                        actions={
-                          <ActionPanel>
-                            <Action.OpenInBrowser title="Open in Notion" url={employee.notionUrl || "#"} />
-                          </ActionPanel>
-                        }
-                      />
-                    }
-                  />
-                  <Action.OpenInBrowser title="Open in Notion" url={employee.notionUrl || "#"} />
-                </ActionPanel>
-              }
-            />
-          ))}
-        </List.Section>
-      ))}
+      {Object.entries(groupedUpcomingLeaves).map(([date, employees]) => {
+        // Filter employees based on status if needed
+        const filteredEmployeesByDate =
+          statusFilter !== "all" ? employees.filter((emp) => emp.status === statusFilter) : employees;
+
+        if (filteredEmployeesByDate.length === 0) return null;
+
+        return (
+          <List.Section key={date} title={`📆 Off from ${date}`}>
+            {filteredEmployeesByDate.map((employee) => (
+              <List.Item
+                key={employee.id}
+                icon={{ source: Icon.Person }}
+                title={employee.name || "Unnamed"}
+                subtitle={`📅 ${formatDate(employee.startDate)} - ${formatDate(employee.endDate)}`}
+                accessories={[
+                  {
+                    tag: {
+                      value: `${getWorkDays(employee.startDate, employee.endDate)} Werktage`,
+                      color: Color.Black,
+                    },
+                  },
+                  {
+                    text: employee.reason || "",
+                    icon: employee.reason.toLowerCase() === "urlaub" ? { source: "😎" } : undefined,
+                  },
+                  getStatusAccessory(employee.status),
+                ]}
+                actions={
+                  <ActionPanel>
+                    <Action.Push
+                      title="Show Details"
+                      target={
+                        <List>
+                          <List.Section title={`Leave Details for ${employee.name}`}>
+                            <List.Item
+                              icon={{ source: Icon.Calendar, tintColor: Color.Blue }}
+                              title="Leave Period"
+                              subtitle={`${formatDate(employee.startDate)} - ${formatDate(employee.endDate)}`}
+                            />
+                            <List.Item
+                              icon={{ source: Icon.Clock, tintColor: Color.Purple }}
+                              title="Work Days"
+                              subtitle={`${getWorkDays(employee.startDate, employee.endDate)} Werktage`}
+                            />
+                            <List.Item
+                              icon={
+                                employee.reason.toLowerCase() === "urlaub"
+                                  ? { source: "😎" }
+                                  : { source: Icon.Message, tintColor: Color.Green }
+                              }
+                              title="Reason"
+                              subtitle={employee.reason}
+                            />
+                            <List.Item
+                              icon={{
+                                source: employee.status === "Approved" ? Icon.CheckCircle : Icon.Clock,
+                                tintColor: employee.status === "Approved" ? Color.Green : Color.Orange,
+                              }}
+                              title="Status"
+                              subtitle={employee.status}
+                            />
+                            {employee.workTag && (
+                              <List.Item
+                                icon={{ source: Icon.Building, tintColor: Color.Brown }}
+                                title="Department"
+                                subtitle={employee.workTag}
+                              />
+                            )}
+                          </List.Section>
+                          <List.Section title="Actions">
+                            <List.Item
+                              icon={{ source: Icon.Link, tintColor: Color.Blue }}
+                              title="Open in Notion"
+                              actions={
+                                <ActionPanel>
+                                  <Action.OpenInBrowser url={employee.notionUrl || "#"} />
+                                </ActionPanel>
+                              }
+                            />
+                            <List.Item
+                              icon={{ source: Icon.CopyClipboard, tintColor: Color.Blue }}
+                              title="Copy Leave Details"
+                              actions={
+                                <ActionPanel>
+                                  <Action.CopyToClipboard
+                                    content={`${employee.name}: ${formatDate(employee.startDate)} - ${formatDate(employee.endDate)} (${getWorkDays(employee.startDate, employee.endDate)} Werktage) - ${employee.reason}`}
+                                  />
+                                </ActionPanel>
+                              }
+                            />
+                          </List.Section>
+                        </List>
+                      }
+                    />
+                    <Action.OpenInBrowser title="Open in Notion" url={employee.notionUrl || "#"} />
+                    <Action.CopyToClipboard
+                      title="Copy Leave Details"
+                      content={`${employee.name}: ${formatDate(employee.startDate)} - ${formatDate(employee.endDate)} (${getWorkDays(employee.startDate, employee.endDate)} Werktage) - ${employee.reason}`}
+                      shortcut={{ modifiers: ["cmd"], key: "c" }}
+                    />
+                  </ActionPanel>
+                }
+              />
+            ))}
+          </List.Section>
+        );
+      })}
     </List>
   );
 }
