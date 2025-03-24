@@ -6,6 +6,7 @@
   "icon": "./holiday-icon.png",
   "author": "Aditya-Raj-Tiwari",
   "owner": "Evolvet",
+  "access": "private",
   "categories": [
     "Productivity"
   ],
